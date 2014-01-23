@@ -4,7 +4,7 @@ import time
 import serial
 import csv
 import optparse
-import piface.pfio as pfio
+import RPi.GPIO as GPIO
 
 def RFIDread():
     ser = serial.Serial("/dev/ttyAMA0")
@@ -23,27 +23,40 @@ def validateUser(id='',room=''):
         csv_reader = csv.DictReader(file)
         for row in csv_reader:
             if id in row['id']:
+		invalidcard = False
                 if 'yes' in row[room]:
                 #    print 'yes'
-                    logfile.write(datetimenow+'User:'+str(row['name'])+' Entered')
+                    logfile.write(datetimenow+'User:'+str(row['name'])+' Entered' + room+'\n')
                     logfile.close()
+		    os.system('cp userlog.txt /boot')
                     return 1
                 else:
                 #    print 'No'
-                    logfile.write(datetimenow+'User:'+str(row['name'])+' Access Denied')
+                    logfile.write(datetimenow+'User:'+str(row['name'])+' Access Denied to '+ room+'\n')
                     logfile.close()
                     return 0
+	    else:
+                logfile.write(datetimenow+'ID:'+id+ 'Un-registered \n')
+	        logfile.close()
+	        return 0
+       
                 
 
 def main():
+    os.system('rm -f userlog.txt')
+    os.system('rm -f /boot/userlog.txt')
+    os.system('cp /boot/userlist.csv .')
+    os.system('echo none > /sys/class/leds/led0/trigger')
     parser = optparse.OptionParser()
     parser.add_option('-r', '--room',help='check access to this room',
                       dest='roomname', default='room1', action='store')
     parser.add_option('-f', '--forever', help='run forever',
                       dest='runf', default=False, action='store_true')
     (opts, args) = parser.parse_args()
-    pfio.init()
     pin = 0
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(16,GPIO.OUT)
+    GPIO.output(16,GPIO.HIGH)
     if(opts.runf == False):
         room = opts.roomname
         ID=RFIDread()
@@ -55,21 +68,17 @@ def main():
             if validateUser(str(ID),'room1'):
                 roomcount = roomcount + 1
                 print "access granted to room1"
-                pfio.digital_write(0,1)
+		GPIO.output(16,GPIO.LOW)
                 time.sleep(3)
-                pfio.digital_write(0,0)
+		GPIO.output(16,GPIO.HIGH)
             if validateUser(str(ID),'room2'):
                 roomcount = roomcount +1
                 print "access granted to room2"
-                pfio.digital_write(1,1)
                 time.sleep(3)
-                pfio.digital_write(1,0)
             if validateUser(str(ID),'room3'):
                 roomcount = roomcount +1
                 print "access granted to room3"
-                pfio.digital_write(2,1)
                 time.sleep(3)
-                pfio.digital_write(2,0) 
             if roomcount == 3:
                 print "Sorry! No access"
 
